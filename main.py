@@ -10,40 +10,35 @@ try:
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
     import absl.logging
     absl.logging.set_verbosity(absl.logging.ERROR)  # Suppress absl warnings
-except Exception as e:
-    print(f"Error importing OpenCV/MediaPipe: {e}")
+except Exception:
     USE_HANDS = False
 pygame.init()
 pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
 W, H = 800, 600
 screen = pygame.display.set_mode((W, H))
-pygame.display.set_caption("Car Dodge - Hand Control (Index Finger)")
+pygame.display.set_caption("Car Game - By Abhishek Gupta")
 clock = pygame.time.Clock()
 os.makedirs("sounds", exist_ok=True)
 os.makedirs("fonts", exist_ok=True)
 os.makedirs("cars", exist_ok=True)
-
 # Load custom fonts
 def load_font(path, size):
     try:
         return pygame.font.Font(path, size)
     except:
         return pygame.font.SysFont("arial", size)
-
 # Load the provided fonts
 gomarice_font = load_font("fonts/gomarice_game_music_love.ttf", 36)
 deadcrt_font = load_font("fonts/DEADCRT.ttf", 48)
 future_font = load_font("fonts/Future TimeSplitters.otf", 32)
 sharpshooter_font = load_font("fonts/Sharpshooter.otf", 28)
 dynatecha_font = load_font("fonts/Dynatecha-Regular.ttf", 14)
-
 # Small fonts for UI
 small_gomarice = load_font("fonts/gomarice_game_music_love.ttf", 20)
 small_deadcrt = load_font("fonts/DEADCRT.ttf", 24)
 small_future = load_font("fonts/Future TimeSplitters.otf", 20)
 small_sharpshooter = load_font("fonts/Sharpshooter.otf", 20)
 small_dynatecha = load_font("fonts/Dynatecha-Regular.ttf", 10)
-
 # Game states
 STATE_CAR_SELECTION = 0
 STATE_NAME_INPUT = 1
@@ -51,7 +46,8 @@ STATE_GAME = 2
 STATE_GAME_OVER = 3
 STATE_VICTORY = 4
 STATE_END_STORY = 5  # New state for the end story
-
+STATE_CONTROL_SELECTION = 6  # New state for control selection
+STATE_POSTER = 7  # New state for poster screen
 # Colors for dark theme
 BACKGROUND_COLOR = (15, 15, 25)
 PANEL_COLOR = (30, 30, 45)
@@ -61,40 +57,12 @@ HIGHLIGHT_COLOR = (255, 255, 100)
 WARNING_COLOR = (255, 100, 100)
 STORY_BACKGROUND = (20, 20, 40)
 STORY_TEXT_COLOR = (255, 255, 255)
-
 # Level lighting conditions (light, medium, dark)
 LEVEL_LIGHTING = [
     {"name": "light", "sky": (135, 206, 235), "horizon": (255, 255, 200), "ambient": 1.0},  # Day
     {"name": "medium", "sky": (70, 80, 120), "horizon": (255, 180, 100), "ambient": 0.7},  # Sunset
     {"name": "dark", "sky": (10, 10, 30), "horizon": (30, 30, 60), "ambient": 0.4}  # Night
 ]
-
-# ---------- Camera detection function ----------
-def check_camera_available():
-    """Check if a camera is available and accessible"""
-    try:
-        import cv2
-        # Try to open the default camera
-        cap = cv2.VideoCapture(0)
-        
-        # Check if camera was opened successfully
-        if cap is None or not cap.isOpened():
-            if cap is not None:
-                cap.release()
-            return False
-        
-        # Try to read a frame
-        ret, frame = cap.read()
-        cap.release()
-        
-        return ret
-    except ImportError:
-        print("OpenCV not installed. Install with: pip install opencv-python")
-        return False
-    except Exception as e:
-        print(f"Camera error: {e}")
-        return False
-
 # ---------- helpers to auto-make assets if missing ----------
 def make_img(path, color, size=(60, 90), is_player=False, car_type=0):
     surf = pygame.Surface(size, pygame.SRCALPHA)
@@ -244,7 +212,6 @@ def make_img(path, color, size=(60, 90), is_player=False, car_type=0):
         pygame.draw.rect(surf, (200,200,200,200), (5, size[1]-12, size[0]-10, 7), border_radius=4)
     
     pygame.image.save(surf, path)
-
 def make_wav(path, freq, duration=0.2):
     sr = 44100
     frames = int(sr * duration)
@@ -256,7 +223,6 @@ def make_wav(path, freq, duration=0.2):
         val = int(30000 * math.sin(2 * math.pi * freq * i / sr))
         w.writeframesraw(struct.pack('<h', val))
     w.close()
-
 def make_engine_sound(path, base_freq, car_type, duration=1.0):
     """Create a unique engine sound for each car type"""
     sr = 44100
@@ -302,8 +268,34 @@ def make_engine_sound(path, base_freq, car_type, duration=1.0):
         
         w.writeframesraw(struct.pack('<h', val))
     w.close()
-
 # Auto-generate minimal assets if not present
+# Generate poster image if not exists
+if not os.path.exists("cars/posterimage.png"):
+    poster_surf = pygame.Surface((W, H))
+    poster_surf.fill((20, 20, 40))
+    
+    # Draw title
+    title_font = deadcrt_font
+    title_text = title_font.render("CAR DODGE", True, (255, 215, 0))
+    title_rect = title_text.get_rect(center=(W//2, H//3))
+    poster_surf.blit(title_text, title_rect)
+    
+    # Draw subtitle
+    subtitle_font = future_font
+    subtitle_text = subtitle_font.render("EXTREME RACING", True, (100, 200, 255))
+    subtitle_rect = subtitle_text.get_rect(center=(W//2, H//3 + 50))
+    poster_surf.blit(subtitle_text, subtitle_rect)
+    
+    # Draw decorative elements
+    for i in range(10):
+        x = random.randint(50, W - 50)
+        y = random.randint(H//2, H - 50)
+        size = random.randint(5, 15)
+        color = random.choice([(255, 100, 100), (100, 255, 100), (100, 100, 255)])
+        pygame.draw.circle(poster_surf, color, (x, y), size)
+    
+    pygame.image.save(poster_surf, "cars/posterimage.png")
+
 # Generate 10 different player cars
 car_colors = [
     (0, 140, 255),    # Blue sports car
@@ -341,7 +333,6 @@ car_stats = [
     {"speed": 5, "handling": 6, "description": "Timeless design"},
     {"speed": 8, "handling": 8, "description": "Next-gen technology"}
 ]
-
 # Generate player cars
 for i in range(10):
     car_path = f"cars/car_{i}.png"
@@ -353,7 +344,6 @@ for i in range(10):
     if not os.path.exists(engine_sound_path):
         base_freq = 100 + i * 20  # Different base frequency for each car
         make_engine_sound(engine_sound_path, base_freq, i)
-
 # Generate enemy cars
 for i, name in enumerate(["cars/e.png","cars/e1.png","cars/e2.png","cars/e3.png","cars/e4.png"]):
     if not os.path.exists(name):
@@ -374,20 +364,16 @@ if not os.path.exists("sounds/select.wav"):
 if not os.path.exists("sounds/music.wav"):
     # Create background music
     make_wav("sounds/music.wav", 440, 3.0)
-
 # ---------- load images & sounds ----------
 def load_scaled(path, size):
     img = pygame.image.load(path).convert_alpha()
     return pygame.transform.scale(img, size)
-
 # Load player cars
 PLAYER_CARS = []
 for i in range(10):
     car_path = f"cars/car_{i}.png"
     PLAYER_CARS.append(load_scaled(car_path, (100, 90)))
-
 ENEMY_IMGS = [load_scaled(p, (80, 80)) for p in ["cars/e.png","cars/e1.png","cars/e2.png","cars/e3.png","cars/e4.png"]]
-
 def load_sound_chain(candidates):
     for p in candidates:
         try:
@@ -396,18 +382,15 @@ def load_sound_chain(candidates):
         except Exception:
             continue
     return None
-
 snd_beep = load_sound_chain(["sounds/beep.wav"]) or pygame.mixer.Sound("sounds/beep.wav")
 snd_crash = load_sound_chain(["sounds/crash.wav"]) or pygame.mixer.Sound("sounds/crash.wav")
 snd_background = load_sound_chain(["sounds/background.wav"])
 snd_select = load_sound_chain(["sounds/select.wav"]) or pygame.mixer.Sound("sounds/select.wav")
-
 # Load engine sounds for each car
 ENGINE_SOUNDS = []
 for i in range(10):
     engine_path = f"sounds/engine_{i}.wav"
     ENGINE_SOUNDS.append(load_sound_chain([engine_path]))
-
 # ---------- Hand tracker (index fingertip x -> 0..1) ----------
 class HandIndexTracker:
     def __init__(self):
@@ -434,43 +417,18 @@ class HandIndexTracker:
         self.fist_history_length = 5  # number of frames to consider
         
         if not self.enabled:
-            print("Hand tracking is disabled")
             return
             
-        try:
-            # Try different camera indices
-            self.cap = None
-            for camera_index in range(0, 3):  # Try camera indices 0, 1, 2
-                self.cap = cv2.VideoCapture(camera_index)
-                if self.cap is not None and self.cap.isOpened():
-                    print(f"Using camera at index {camera_index}")
-                    break
-                else:
-                    if self.cap is not None:
-                        self.cap.release()
-            
-            if self.cap is None or not self.cap.isOpened():
-                print("Error: Could not open any camera")
-                self.enabled = False
-                return
-                
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            
-            self.mp_hands = mp.solutions.hands
-            self.hands = self.mp_hands.Hands(
-                max_num_hands=1,
-                min_detection_confidence=0.6,
-                min_tracking_confidence=0.6
-            )
-            self.draw = mp.solutions.drawing_utils
-            
-            print("Hand tracking initialized successfully")
-        except Exception as e:
-            print(f"Error initializing hand tracking: {e}")
-            self.enabled = False
-            if hasattr(self, 'cap') and self.cap is not None:
-                self.cap.release()
+        self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(
+            max_num_hands=1,
+            min_detection_confidence=0.6,
+            min_tracking_confidence=0.6
+        )
+        self.draw = mp.solutions.drawing_utils
         
     def calibrate(self):
         """Calibrate hand position based on initial readings"""
@@ -494,126 +452,123 @@ class HandIndexTracker:
         if not self.enabled:
             return None
             
-        try:
-            ok, frame = self.cap.read()
-            if not ok:
-                return None
-                
-            frame = cv2.flip(frame, 1)  # mirror
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            res = self.hands.process(rgb)
-            
-            if res.multi_hand_landmarks:
-                lm = res.multi_hand_landmarks[0]
-                idx_tip = lm.landmark[8]  # Index finger tip
-                thumb_tip = lm.landmark[4]  # Thumb tip
-                middle_tip = lm.landmark[12]  # Middle finger tip
-                
-                x = max(0.0, min(1.0, idx_tip.x))
-                
-                # Check for pinch gesture (thumb and middle finger close together)
-                thumb_middle_dist = math.sqrt(
-                    (thumb_tip.x - middle_tip.x)**2 + 
-                    (thumb_tip.y - middle_tip.y)**2
-                )
-                
-                # Improved pinch detection with confidence and history
-                current_time = time.time()
-                
-                # Update pinch history
-                is_pinching = thumb_middle_dist < self.pinch_threshold
-                self.pinch_history.append(is_pinching)
-                if len(self.pinch_history) > self.pinch_history_length:
-                    self.pinch_history.pop(0)
-                
-                # Check if pinch is stable (most recent frames agree)
-                stable_pinch = sum(self.pinch_history) >= self.pinch_history_length * 0.8
-                
-                # Detect pinch gesture for restart
-                if stable_pinch and (current_time - self.last_pinch_time) > self.pinch_cooldown:
-                    self.pinch_detected = True
-                    self.last_pinch_time = current_time
-                    self.pinch_history = []  # Reset history after detection
-                    return "restart"  # Special return value for restart
-                else:
-                    self.pinch_detected = False
-                
-                # Check for closed fist gesture (all fingers folded)
-                # Finger tips: 8 (index), 12 (middle), 16 (ring), 20 (pinky)
-                # Finger middle joints: 6 (index), 10 (middle), 14 (ring), 18 (pinky)
-                fingers_folded = 0
-                if lm.landmark[8].y > lm.landmark[6].y:  # Index finger
-                    fingers_folded += 1
-                if lm.landmark[12].y > lm.landmark[10].y:  # Middle finger
-                    fingers_folded += 1
-                if lm.landmark[16].y > lm.landmark[14].y:  # Ring finger
-                    fingers_folded += 1
-                if lm.landmark[20].y > lm.landmark[18].y:  # Pinky
-                    fingers_folded += 1
-                
-                # Update fist history
-                is_fist = fingers_folded >= 3  # At least 3 fingers folded
-                self.fist_history.append(is_fist)
-                if len(self.fist_history) > self.fist_history_length:
-                    self.fist_history.pop(0)
-                
-                # Check if fist is stable (most recent frames agree)
-                stable_fist = sum(self.fist_history) >= self.fist_history_length * 0.8
-                
-                # Detect fist gesture for exit
-                if stable_fist and (current_time - self.last_fist_time) > self.fist_cooldown:
-                    self.fist_detected = True
-                    self.last_fist_time = current_time
-                    self.fist_history = []  # Reset history after detection
-                    return "exit"  # Special return value for exit
-                else:
-                    self.fist_detected = False
-                
-                # Draw hand landmarks for debugging
-                self.draw.draw_landmarks(frame, lm, self.mp_hands.HAND_CONNECTIONS)
-                cv2.circle(frame, (int(x*frame.shape[1]), int(idx_tip.y*frame.shape[0])), 8, (255,255,255), -1)
-                
-                # Show calibration status
-                status = "Calibrated" if self.calibrated else "Calibrating..."
-                cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                
-                # Show pinch status with confidence
-                pinch_status = f"PINCH: {int(stable_pinch * 100)}%"
-                pinch_color = (0, 255, 0) if stable_pinch else (0, 200, 200)
-                cv2.putText(frame, pinch_status, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, pinch_color, 2)
-                
-                # Show fist status with confidence
-                fist_status = f"FIST: {int(stable_fist * 100)}%"
-                fist_color = (255, 0, 0) if stable_fist else (200, 0, 0)
-                cv2.putText(frame, fist_status, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, fist_color, 2)
-                
-                # Draw circles on thumb and middle finger when pinching
-                if stable_pinch:
-                    cv2.circle(frame, (int(thumb_tip.x*frame.shape[1]), int(thumb_tip.y*frame.shape[0])), 10, (0, 255, 0), 2)
-                    cv2.circle(frame, (int(middle_tip.x*frame.shape[1]), int(middle_tip.y*frame.shape[0])), 10, (0, 255, 0), 2)
-                    cv2.line(frame, 
-                            (int(thumb_tip.x*frame.shape[1]), int(thumb_tip.y*frame.shape[0])),
-                            (int(middle_tip.x*frame.shape[1]), int(middle_tip.y*frame.shape[0])),
-                            (0, 255, 0), 2)
-                
-                # Draw circles on folded fingers when fist detected
-                if stable_fist:
-                    for i, (tip_idx, mid_idx) in enumerate([(8,6), (12,10), (16,14), (20,18)]):
-                        if lm.landmark[tip_idx].y > lm.landmark[mid_idx].y:
-                            tip = lm.landmark[tip_idx]
-                            cv2.circle(frame, (int(tip.x*frame.shape[1]), int(tip.y*frame.shape[0])), 8, (255, 0, 0), 2)
-                
-                cv2.imshow("Hand Control (press Q to hide)", frame)
-                if cv2.waitKey(1) & 0xFF in (ord('q'), ord('Q')):
-                    try:
-                        cv2.destroyWindow("Hand Control (press Q to hide)")
-                    except Exception:
-                        pass
-                        
-                return x
-        except Exception as e:
-            print(f"Error in hand tracking: {e}")
+        ok, frame = self.cap.read()
+        if not ok:
             return None
+            
+        frame = cv2.flip(frame, 1)  # mirror
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        res = self.hands.process(rgb)
+        
+        if res.multi_hand_landmarks:
+            lm = res.multi_hand_landmarks[0]
+            idx_tip = lm.landmark[8]  # Index finger tip
+            thumb_tip = lm.landmark[4]  # Thumb tip
+            middle_tip = lm.landmark[12]  # Middle finger tip
+            
+            x = max(0.0, min(1.0, idx_tip.x))
+            
+            # Check for pinch gesture (thumb and middle finger close together)
+            thumb_middle_dist = math.sqrt(
+                (thumb_tip.x - middle_tip.x)**2 + 
+                (thumb_tip.y - middle_tip.y)**2
+            )
+            
+            # Improved pinch detection with confidence and history
+            current_time = time.time()
+            
+            # Update pinch history
+            is_pinching = thumb_middle_dist < self.pinch_threshold
+            self.pinch_history.append(is_pinching)
+            if len(self.pinch_history) > self.pinch_history_length:
+                self.pinch_history.pop(0)
+            
+            # Check if pinch is stable (most recent frames agree)
+            stable_pinch = sum(self.pinch_history) >= self.pinch_history_length * 0.8
+            
+            # Detect pinch gesture for restart
+            if stable_pinch and (current_time - self.last_pinch_time) > self.pinch_cooldown:
+                self.pinch_detected = True
+                self.last_pinch_time = current_time
+                self.pinch_history = []  # Reset history after detection
+                return "restart"  # Special return value for restart
+            else:
+                self.pinch_detected = False
+            
+            # Check for closed fist gesture (all fingers folded)
+            # Finger tips: 8 (index), 12 (middle), 16 (ring), 20 (pinky)
+            # Finger middle joints: 6 (index), 10 (middle), 14 (ring), 18 (pinky)
+            fingers_folded = 0
+            if lm.landmark[8].y > lm.landmark[6].y:  # Index finger
+                fingers_folded += 1
+            if lm.landmark[12].y > lm.landmark[10].y:  # Middle finger
+                fingers_folded += 1
+            if lm.landmark[16].y > lm.landmark[14].y:  # Ring finger
+                fingers_folded += 1
+            if lm.landmark[20].y > lm.landmark[18].y:  # Pinky
+                fingers_folded += 1
+            
+            # Update fist history
+            is_fist = fingers_folded >= 3  # At least 3 fingers folded
+            self.fist_history.append(is_fist)
+            if len(self.fist_history) > self.fist_history_length:
+                self.fist_history.pop(0)
+            
+            # Check if fist is stable (most recent frames agree)
+            stable_fist = sum(self.fist_history) >= self.fist_history_length * 0.8
+            
+            # Detect fist gesture for exit
+            if stable_fist and (current_time - self.last_fist_time) > self.fist_cooldown:
+                self.fist_detected = True
+                self.last_fist_time = current_time
+                self.fist_history = []  # Reset history after detection
+                return "exit"  # Special return value for exit
+            else:
+                self.fist_detected = False
+            
+            # Draw hand landmarks for debugging
+            self.draw.draw_landmarks(frame, lm, self.mp_hands.HAND_CONNECTIONS)
+            cv2.circle(frame, (int(x*frame.shape[1]), int(idx_tip.y*frame.shape[0])), 8, (255,255,255), -1)
+            
+            # Show calibration status
+            status = "Calibrated" if self.calibrated else "Calibrating..."
+            cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
+            # Show pinch status with confidence
+            pinch_status = f"PINCH: {int(stable_pinch * 100)}%"
+            pinch_color = (0, 255, 0) if stable_pinch else (0, 200, 200)
+            cv2.putText(frame, pinch_status, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, pinch_color, 2)
+            
+            # Show fist status with confidence
+            fist_status = f"FIST: {int(stable_fist * 100)}%"
+            fist_color = (255, 0, 0) if stable_fist else (200, 0, 0)
+            cv2.putText(frame, fist_status, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, fist_color, 2)
+            
+            # Draw circles on thumb and middle finger when pinching
+            if stable_pinch:
+                cv2.circle(frame, (int(thumb_tip.x*frame.shape[1]), int(thumb_tip.y*frame.shape[0])), 10, (0, 255, 0), 2)
+                cv2.circle(frame, (int(middle_tip.x*frame.shape[1]), int(middle_tip.y*frame.shape[0])), 10, (0, 255, 0), 2)
+                cv2.line(frame, 
+                        (int(thumb_tip.x*frame.shape[1]), int(thumb_tip.y*frame.shape[0])),
+                        (int(middle_tip.x*frame.shape[1]), int(middle_tip.y*frame.shape[0])),
+                        (0, 255, 0), 2)
+            
+            # Draw circles on folded fingers when fist detected
+            if stable_fist:
+                for i, (tip_idx, mid_idx) in enumerate([(8,6), (12,10), (16,14), (20,18)]):
+                    if lm.landmark[tip_idx].y > lm.landmark[mid_idx].y:
+                        tip = lm.landmark[tip_idx]
+                        cv2.circle(frame, (int(tip.x*frame.shape[1]), int(tip.y*frame.shape[0])), 8, (255, 0, 0), 2)
+            
+            cv2.imshow("Hand Control (press Q to hide)", frame)
+            if cv2.waitKey(1) & 0xFF in (ord('q'), ord('Q')):
+                try:
+                    cv2.destroyWindow("Hand Control (press Q to hide)")
+                except Exception:
+                    pass
+                    
+            return x
+        return None
         
     def get_x_norm(self):
         """Return normalized x in [0,1] for index fingertip (8). If no hand, return last."""
@@ -642,12 +597,10 @@ class HandIndexTracker:
         if not self.enabled:
             return
         try:
-            if hasattr(self, 'cap') and self.cap is not None:
-                self.cap.release()
+            self.cap.release()
             cv2.destroyAllWindows()
         except Exception:
             pass
-
 # ---------- Particle system for effects ----------
 class Particle:
     def __init__(self, x, y, color, speed, size, lifetime):
@@ -670,7 +623,6 @@ class Particle:
     def draw(self, surface):
         if self.age < self.lifetime:
             gfxdraw.filled_circle(surface, int(self.x), int(self.y), self.size, self.color)
-
 class ParticleSystem:
     def __init__(self):
         self.particles = []
@@ -694,7 +646,6 @@ class ParticleSystem:
     def draw(self, surface):
         for particle in self.particles:
             particle.draw(surface)
-
 # ---------- Text animation system ----------
 class TextAnimation:
     def __init__(self, text, font, color, x, y, animation_type="fade_in", duration=1.0, align="left"):
@@ -751,7 +702,6 @@ class TextAnimation:
             visible_text = self.text[:visible_chars]
             visible_surf = self.font.render(visible_text, True, self.color)
             surface.blit(visible_surf, (x, self.y))
-
 # ---------- game objects & logic ----------
 class Car(pygame.sprite.Sprite):
     def __init__(self, img, x, y, is_player=False, car_stats=None, car_type=0):
@@ -798,8 +748,10 @@ class Car(pygame.sprite.Sprite):
             
             self.rect.centerx += actual_speed
             
-        # Keep within bounds
-        self.rect.centerx = max(40, min(W - 40, self.rect.centerx))
+        # Keep within bounds - ensure car stays within road walls
+        road_left_boundary = 90  # Left edge of the road
+        road_right_boundary = W - 90  # Right edge of the road
+        self.rect.centerx = max(road_left_boundary, min(road_right_boundary, self.rect.centerx))
         
     def upd_keyboard(self, keys):
         # Keyboard control with acceleration
@@ -817,8 +769,11 @@ class Car(pygame.sprite.Sprite):
                 self.speed = min(0, self.speed + self.deceleration)
                 
         self.rect.x += self.speed
-        self.rect.x = max(40, min(W - 40, self.rect.x))
-
+        
+        # Keep within bounds - ensure car stays within road walls
+        road_left_boundary = 90  # Left edge of the road
+        road_right_boundary = W - 90  # Right edge of the road
+        self.rect.centerx = max(road_left_boundary, min(road_right_boundary, self.rect.centerx))
 # Road rendering class for better visuals
 class Road:
     def __init__(self, level=0):
@@ -1023,7 +978,6 @@ class Road:
             # Draw reflective strip
             if y % 40 < 20:
                 pygame.draw.rect(surface, strip_color, (strip_x, y, 3, 10))
-
 # Background scenery
 class Background:
     def __init__(self, level=0):
@@ -1172,14 +1126,12 @@ class Background:
                     int(10 * self.lighting["ambient"])
                 )
                 pygame.draw.circle(surface, leaf_color, (x, y - size // 2), size // 2)
-
 LANES = {"L": W // 4, "C": W // 2, "R": 3 * W // 4}
 LANE_GRAPH = {
     "L": {"C": 1},
     "C": {"L": 1, "R": 1},
     "R": {"C": 1}
 }
-
 def dijkstra(graph, start):
     dist = {node: float('inf') for node in graph}
     dist[start] = 0
@@ -1194,10 +1146,8 @@ def dijkstra(graph, start):
                 dist[neighbor] = alt
                 prev[neighbor] = current
     return dist, prev
-
 def get_closest_lane(x):
     return min(LANES, key=lambda l: abs(LANES[l] - x))
-
 def choose_enemy_lane(player_x, last_enemy_lane=None):
     player_lane = get_closest_lane(player_x)
     lanes = list(LANES.keys())
@@ -1214,7 +1164,6 @@ def choose_enemy_lane(player_x, last_enemy_lane=None):
         choices = [next_lane] + list(LANE_GRAPH[next_lane].keys())
         next_lane = random.choice(choices)
     return next_lane
-
 def draw_finish_line():
     line_height, line_width, y = 10, W - 100, 100
     # Draw checkered pattern with glow effect
@@ -1243,8 +1192,7 @@ def draw_finish_line():
     scaled_text = pygame.transform.scale(text, (int(text.get_width() * scale), int(text.get_height() * scale)))
     screen.blit(scaled_text, (text_rect.centerx - scaled_text.get_width() // 2, 
                              text_rect.centery - scaled_text.get_height() // 2))
-
-def draw_hud(level, score, high_score, player_name, show_restart_hint=True):
+def draw_hud(level, score, high_score, player_name, control_method, show_restart_hint=True):
     # Draw HUD background panel
     panel = pygame.Surface((200, 160), pygame.SRCALPHA)
     panel.fill((30, 30, 45, 200))
@@ -1267,12 +1215,12 @@ def draw_hud(level, score, high_score, player_name, show_restart_hint=True):
     screen.blit(name_text, (20, 110))
     
     # Draw control indicator
-    ctrl = "HAND" if USE_HANDS else "KEYBOARD"
+    ctrl = control_method.upper()
     ctrl_text = small_gomarice.render(f"CTRL: {ctrl}", True, TEXT_COLOR)
     screen.blit(ctrl_text, (W - ctrl_text.get_width() - 10, 10))
     
-    # Draw restart gesture indicator
-    if USE_HANDS and show_restart_hint:
+    # Draw restart gesture indicator only for hand control
+    if control_method == "hand" and show_restart_hint:
         gesture_text = small_dynatecha.render("PINCH: Restart", True, WARNING_COLOR)
         screen.blit(gesture_text, (W - gesture_text.get_width() - 10, 40))
         
@@ -1299,8 +1247,269 @@ def draw_hud(level, score, high_score, player_name, show_restart_hint=True):
         pygame.draw.line(screen, color, (bar_x + i, bar_y), (bar_x + i, bar_y + bar_height))
     # Border
     pygame.draw.rect(screen, (100, 100, 120), (bar_x, bar_y, bar_width, bar_height), 1, border_radius=5)
-
-def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_index):
+def poster_screen():
+    # Play background music
+    try:
+        pygame.mixer.music.load("sounds/music.wav")
+        pygame.mixer.music.play(-1)  # Loop indefinitely
+        pygame.mixer.music.set_volume(0.5)
+    except:
+        pass
+    
+    # Load poster image
+    poster_img = pygame.image.load("cars/posterimage.png").convert()
+    poster_img = pygame.transform.scale(poster_img, (W, H))
+    
+    text_animations = []
+    
+    # Add title animation
+    text_animations.append(TextAnimation(
+        "CAR DODGE EXTREME", 
+        deadcrt_font, 
+        HIGHLIGHT_COLOR, 
+        W//2, 
+        H//2 - 50, 
+        "pulse", 
+        2.0,
+        "center"
+    ))
+    
+    # Add story text with typewriter effect
+    story_lines = [
+        "Welcome to the ultimate racing experience!",
+        "Navigate through traffic at high speeds.",
+        "Choose your control method and car,",
+        "then conquer all three levels!",
+        "",
+        "Press ENTER to continue..."
+    ]
+    
+    y_pos = H//2 + 50
+    for i, line in enumerate(story_lines):
+        if line:  # Skip empty lines
+            text_animations.append(TextAnimation(
+                line,
+                small_dynatecha,
+                STORY_TEXT_COLOR,
+                W//2,  # Center position
+                y_pos,
+                "typewriter",
+                1.0 + i * 0.2,  # Staggered animations
+                "center"  # Center alignment
+            ))
+        y_pos += 30
+    
+    # Create ambient particles
+    particles = ParticleSystem()
+    
+    # Track when to allow continuing
+    can_continue = False
+    continue_time = 0
+    
+    while True:
+        current_time = time.time()
+        
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.mixer.music.stop()
+                return False
+            elif e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_RETURN and can_continue:
+                    pygame.mixer.music.stop()
+                    return True
+                elif e.key == pygame.K_ESCAPE:
+                    pygame.mixer.music.stop()
+                    return False
+        
+        # Check if all animations are complete
+        all_complete = all(not anim.active for anim in text_animations)
+        if all_complete and not can_continue:
+            can_continue = True
+            continue_time = current_time
+        
+        # Occasionally emit particles
+        if random.random() < 0.05:
+            x = random.randint(50, W - 50)
+            y = random.randint(50, H // 2)
+            color = random.choice([(255, 215, 0), (100, 100, 255), (255, 100, 255)])
+            particles.emit(x, y, color, 10, speed_range=(-1, 1), size_range=(2, 4), lifetime_range=(20, 40))
+        
+        # Draw poster background
+        screen.blit(poster_img, (0, 0))
+        
+        # Add semi-transparent overlay for text visibility
+        overlay = pygame.Surface((W, H), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        screen.blit(overlay, (0, 0))
+        
+        # Update and draw particles
+        particles.update()
+        particles.draw(screen)
+        
+        # Update and draw text animations
+        for anim in text_animations:
+            if anim.active:
+                anim.update()
+                anim.draw(screen)
+        
+        # Draw continue hint if ready
+        if can_continue:
+            # Pulsing effect
+            alpha = 200 + int(55 * math.sin(current_time * 5))
+            hint_text = small_dynatecha.render("Press ENTER to continue", True, (255, 255, 255, alpha))
+            hint_rect = hint_text.get_rect(center=(W//2, H - 50))
+            screen.blit(hint_text, hint_rect)
+        
+        pygame.display.flip()
+        clock.tick(60)
+def control_selection_screen():
+    selected_option = 0  # 0 for keyboard, 1 for hand
+    options = ["KEYBOARD", "HAND"]
+    option_rects = []
+    
+    # Create option buttons
+    button_width = 200
+    button_height = 60
+    spacing = 30
+    start_x = (W - button_width) // 2
+    start_y = H // 2 - button_height - spacing // 2
+    
+    for i in range(2):
+        x = start_x
+        y = start_y + i * (button_height + spacing)
+        option_rects.append(pygame.Rect(x, y, button_width, button_height))
+    
+    text_animations = []
+    
+    # Add title animation
+    text_animations.append(TextAnimation(
+        "SELECT CONTROL METHOD", 
+        gomarice_font, 
+        HIGHLIGHT_COLOR, 
+        W//2, 
+        100, 
+        "pulse", 
+        2.0,
+        "center"
+    ))
+    
+    # Add instructions animation
+    text_animations.append(TextAnimation(
+        "Use UP/DOWN arrows to select, ENTER to confirm", 
+        small_dynatecha, 
+        TEXT_COLOR, 
+        W//2, 
+        150, 
+        "typewriter", 
+        2.0,
+        "center"
+    ))
+    
+    # Add keyboard description
+    keyboard_desc = [
+        "Keyboard Control:",
+        "• Use LEFT and RIGHT arrow keys to move",
+        "• Press R to restart",
+        "• Press ESC to exit"
+    ]
+    
+    # Add hand control description
+    hand_desc = [
+        "Hand Control:",
+        "• Move your index finger left/right to control car",
+        "• Pinch gesture to restart",
+        "• Closed fist gesture to exit"
+    ]
+    
+    while True:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                return None
+            elif e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_UP:
+                    selected_option = (selected_option - 1) % 2
+                    snd_select.play()
+                elif e.key == pygame.K_DOWN:
+                    selected_option = (selected_option + 1) % 2
+                    snd_select.play()
+                elif e.key == pygame.K_RETURN:
+                    return options[selected_option].lower()
+            elif e.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                for i, rect in enumerate(option_rects):
+                    if rect.collidepoint(mouse_pos):
+                        selected_option = i
+                        snd_select.play()
+                        return options[selected_option].lower()
+        
+        # Draw background
+        screen.fill(BACKGROUND_COLOR)
+        
+        # Draw grid pattern for visual interest
+        for x in range(0, W, 40):
+            pygame.draw.line(screen, (25, 25, 35), (x, 0), (x, H))
+        for y in range(0, H, 40):
+            pygame.draw.line(screen, (25, 25, 35), (0, y), (W, y))
+        
+        # Draw option buttons
+        for i, rect in enumerate(option_rects):
+            # Draw button background
+            if i == selected_option:
+                # Glow effect for selected option
+                glow_surf = pygame.Surface((button_width + 20, button_height + 20), pygame.SRCALPHA)
+                for j in range(10):
+                    alpha = 100 - j * 10
+                    pygame.draw.rect(glow_surf, (100, 100, 255, alpha), 
+                                    (j, j, button_width + 20 - 2*j, button_height + 20 - 2*j), border_radius=10)
+                screen.blit(glow_surf, (rect.x - 10, rect.y - 10))
+                
+                pygame.draw.rect(screen, PANEL_COLOR, rect.inflate(10, 10), border_radius=10)
+                pygame.draw.rect(screen, HIGHLIGHT_COLOR, rect.inflate(10, 10), 3, border_radius=10)
+            else:
+                pygame.draw.rect(screen, PANEL_COLOR, rect, border_radius=5)
+            
+            # Draw option text
+            option_text = future_font.render(options[i], True, TEXT_COLOR)
+            option_rect = option_text.get_rect(center=(rect.centerx, rect.centery))
+            screen.blit(option_text, option_rect)
+        
+        # Draw control descriptions
+        desc_y = start_y + 2 * (button_height + spacing) + 30
+        
+        # Keyboard description
+        if selected_option == 0:
+            desc_color = HIGHLIGHT_COLOR
+        else:
+            desc_color = TEXT_COLOR
+            
+        for line in keyboard_desc:
+            line_text = small_dynatecha.render(line, True, desc_color)
+            screen.blit(line_text, (start_x, desc_y))
+            desc_y += 25
+        
+        # Hand control description
+        desc_y += 20
+        
+        if selected_option == 1:
+            desc_color = HIGHLIGHT_COLOR
+        else:
+            desc_color = TEXT_COLOR
+            
+        for line in hand_desc:
+            line_text = small_dynatecha.render(line, True, desc_color)
+            screen.blit(line_text, (start_x, desc_y))
+            desc_y += 25
+        
+        # Update and draw text animations
+        for anim in text_animations[:]:
+            if not anim.update():
+                text_animations.remove(anim)
+            else:
+                anim.draw(screen)
+                
+        pygame.display.flip()
+        clock.tick(60)
+def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_index, control_method):
     speed = 4 + 2 * level
     player = Car(PLAYER_CARS[selected_car_index], W // 2, H - 80, is_player=True, car_stats=car_stats[selected_car_index], car_type=selected_car_index)
     enemies = pygame.sprite.Group()
@@ -1333,8 +1542,8 @@ def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_in
         "center"
     ))
     
-    # Calibrate hand tracking if enabled
-    if hands and hands.enabled and not hands.calibrated:
+    # Calibrate hand tracking if enabled and selected
+    if control_method == "hand" and hands and hands.enabled and not hands.calibrated:
         text_animations.append(TextAnimation(
             "CALIBRATING HAND CONTROL...", 
             small_future, 
@@ -1396,7 +1605,9 @@ def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_in
             
         # ---- control: hand first, keyboard fallback ----
         target_x = None
-        if hands and hands.enabled:
+        
+        # Use the selected control method
+        if control_method == "hand" and hands and hands.enabled:
             hand_result = hands.get_x_norm()  # Can be x position, "restart", or "exit"
             
             if hand_result == "exit":  # Exit gesture detected
@@ -1434,9 +1645,11 @@ def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_in
             elif hand_result is not None:
                 margin = 40
                 target_x = int(margin + hand_result * (W - 2*margin))
-                
+        
+        # Keyboard control (always available as fallback)
         keys = pygame.key.get_pressed()
-        if target_x is not None:
+        
+        if target_x is not None and control_method == "hand":
             player.move_to_x(target_x, max_step=10)
         else:
             player.upd_keyboard(keys)
@@ -1547,7 +1760,7 @@ def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_in
         particles.draw(screen)
         
         # HUD
-        draw_hud(level, score, high_score, player_name, show_restart_hint=(restart_feedback_time == 0))
+        draw_hud(level, score, high_score, player_name, control_method, show_restart_hint=(restart_feedback_time == 0))
         
         # Show finish line when close to completing level
         if score > 350 * level:
@@ -1568,8 +1781,7 @@ def run(level, hands: HandIndexTracker, high_score, player_name, selected_car_in
         return "completed", score
     else:
         return "restart", score
-
-def game_over_screen(score, high_score, hands, player_name):
+def game_over_screen(score, high_score, hands, player_name, control_method):
     # Update high score if needed
     if score > high_score:
         high_score = score
@@ -1648,7 +1860,7 @@ def game_over_screen(score, high_score, hands, player_name):
         "center"
     ))
     
-    if USE_HANDS:
+    if control_method == "hand":
         text_animations.append(TextAnimation(
             "Or use PINCH to restart or FIST to exit", 
             small_dynatecha, 
@@ -1672,7 +1884,7 @@ def game_over_screen(score, high_score, hands, player_name):
                     return False  # Return no restart
                     
         # Check for hand gesture restart
-        if hands and hands.enabled:
+        if control_method == "hand" and hands and hands.enabled:
             hand_result = hands.get_x_norm()
             if hand_result == "restart":
                 return True  # Return restart flag
@@ -1697,8 +1909,7 @@ def game_over_screen(score, high_score, hands, player_name):
                 
         pygame.display.flip()
         clock.tick(60)
-
-def victory_screen(total_score, high_score, hands, player_name):
+def victory_screen(total_score, high_score, hands, player_name, control_method):
     # Update high score if needed
     if total_score > high_score:
         high_score = total_score
@@ -1797,7 +2008,7 @@ def victory_screen(total_score, high_score, hands, player_name):
                     return False  # Return no continue
                     
         # Check for hand gesture exit
-        if hands and hands.enabled and hands.get_x_norm() == "exit":
+        if control_method == "hand" and hands and hands.enabled and hands.get_x_norm() == "exit":
             return False  # Return no continue
                     
         # Draw background
@@ -1822,7 +2033,6 @@ def victory_screen(total_score, high_score, hands, player_name):
                 
         pygame.display.flip()
         clock.tick(60)
-
 def end_story_screen(hands):
     # Release the camera if it exists - CAMERA DISABLED
     if hands and hands.enabled:
@@ -1967,7 +2177,6 @@ def end_story_screen(hands):
                 
         pygame.display.flip()
         clock.tick(60)
-
 def hand_recognition_screen():
     # Reinitialize hand tracking - CAMERA ENABLED
     hands = HandIndexTracker() if USE_HANDS else None
@@ -2069,7 +2278,6 @@ def hand_recognition_screen():
                 
         pygame.display.flip()
         clock.tick(60)
-
 def car_selection_screen():
     selected_car = 0
     car_rects = []
@@ -2231,7 +2439,6 @@ def car_selection_screen():
                 
         pygame.display.flip()
         clock.tick(60)
-
 def name_input_screen(selected_car_index):
     player_name = ""
     active = True
@@ -2323,20 +2530,9 @@ def name_input_screen(selected_car_index):
                 
         pygame.display.flip()
         clock.tick(60)
-
 def main():
-    global USE_HANDS
-    
-    # Check for OpenCV and MediaPipe availability
-    if not USE_HANDS:
-        print("Hand tracking disabled: OpenCV/MediaPipe not available")
-    else:
-        print("Checking camera availability...")
-        if not check_camera_available():
-            print("No camera detected or camera not accessible. Disabling hand tracking.")
-            USE_HANDS = False
-        else:
-            print("Camera detected. Hand tracking enabled.")
+    # Initialize hand tracking
+    hands = HandIndexTracker() if USE_HANDS else None
     
     # Load high score
     high_score = 0
@@ -2346,17 +2542,18 @@ def main():
     except:
         pass
         
-    # Play background music if available
-    if snd_background:
-        try:
-            pygame.mixer.music.load("sounds/background.wav")
-            pygame.mixer.music.play(-1)  # Loop indefinitely
-            pygame.mixer.music.set_volume(0.3)
-        except:
-            pass
-    
     # Game loop with restart capability
     while True:
+        # Show poster screen
+        poster_result = poster_screen()
+        if not poster_result:  # User chose to quit
+            break
+            
+        # Control selection
+        control_method = control_selection_screen()
+        if control_method is None:  # User chose to quit
+            break
+            
         # Car selection
         selected_car_index = car_selection_screen()
         if selected_car_index == -1:  # User chose to quit
@@ -2367,32 +2564,29 @@ def main():
         if player_name is None:  # User chose to quit
             break
         
-        # Initialize hand tracking with the updated USE_HANDS flag
-        hands = HandIndexTracker() if USE_HANDS else None
-        
         # Run game levels
         total_score = 0
-        status, score1 = run(1, hands, high_score, player_name, selected_car_index)
+        status, score1 = run(1, hands, high_score, player_name, selected_car_index, control_method)
         if status == "exit":  # User chose to exit
             break
         elif status == "restart":  # User crashed or restarted
-            continue  # Go back to car selection
+            continue  # Go back to control selection
             
         total_score += score1
         
-        status, score2 = run(2, hands, high_score, player_name, selected_car_index)
+        status, score2 = run(2, hands, high_score, player_name, selected_car_index, control_method)
         if status == "exit":  # User chose to exit
             break
         elif status == "restart":  # User crashed or restarted
-            continue  # Go back to car selection
+            continue  # Go back to control selection
             
         total_score += score2
         
-        status, score3 = run(3, hands, high_score, player_name, selected_car_index)
+        status, score3 = run(3, hands, high_score, player_name, selected_car_index, control_method)
         if status == "exit":  # User chose to exit
             break
         elif status == "restart":  # User crashed or restarted
-            continue  # Go back to car selection
+            continue  # Go back to control selection
             
         total_score += score3
         
@@ -2402,7 +2596,7 @@ def main():
                 f.write(str(total_score))
                 
         # Show victory screen
-        continue_game = victory_screen(total_score, high_score, hands, player_name)
+        continue_game = victory_screen(total_score, high_score, hands, player_name, control_method)
         if not continue_game:  # User chose to quit
             break
             
@@ -2418,10 +2612,9 @@ def main():
         # If recognition_result is True, user chose to restart, so continue the loop
     
     # Clean up - only release hands when completely exiting the game
-    if 'hands' in locals() and hands:
+    if hands:
         hands.release()
     pygame.quit()
     sys.exit()
-
 if __name__ == "__main__":
     main()
