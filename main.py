@@ -1250,7 +1250,7 @@ def draw_hud(level, score, high_score, player_name, control_method, show_restart
 def poster_screen():
     # Play background music
     try:
-        pygame.mixer.music.load("sounds/music.wav")
+        pygame.mixer.music.load("sounds/music.mp3")
         pygame.mixer.music.play(-1)  # Loop indefinitely
         pygame.mixer.music.set_volume(0.5)
     except:
@@ -2040,7 +2040,7 @@ def end_story_screen(hands):
     
     # Play background music if available
     try:
-        pygame.mixer.music.load("sounds/music.wav")
+        pygame.mixer.music.load("sounds/music.mp3")
         pygame.mixer.music.play(-1)  # Loop indefinitely
         pygame.mixer.music.set_volume(0.5)
     except:
