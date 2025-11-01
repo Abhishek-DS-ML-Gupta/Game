@@ -5,10 +5,9 @@ Dodge incoming cars, rack up points, and test your reflexes in this simple yet e
 
 ---
 
-## 📸 Screenshots
-*(Add your screenshots in a folder named `screenshots/` and update the paths below)*
+## Demo Video
 
-![Gameplay Screenshot](https://www.linkedin.com/posts/abhishek-gupta-0442132b6_gamedevelopment-python-pygame-activity-7371288949669048320-H_PD?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAEvZnXQBxZNDzNlg4xLln8p08yeDZwZEaos)
+https://www.linkedin.com/posts/abhishek-gupta-0442132b6_gamedevelopment-python-pygame-activity-7371288949669048320-H_PD?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAEvZnXQBxZNDzNlg4xLln8p08yeDZwZEaos
 
 ---
 
